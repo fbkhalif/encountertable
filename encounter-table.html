@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Encounter Table</title>
+<style>
+  :root{
+    --ink:#0d1210;
+    --parchment:#e9e2cf;
+    --parchment-dim:#c9bfa2;
+    --ember:#c9662b;
+    --moss:#4c6b4f;
+    --panel:#151a17;
+    --panel-line:rgba(233,226,207,0.14);
+    --font-display: 'Cinzel', Georgia, serif;
+    --font-body: 'Spectral', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  @font-face{
+    font-family:'Cinzel';
+    src:local('Cinzel');
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--ink);
+    color:var(--parchment);
+    font-family:var(--font-body);
+    overflow:hidden;
+  }
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;}
+
+  /* ---------- header ---------- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;
+    background:linear-gradient(180deg, #171d19 0%, #12100f 100%);
+    border-bottom:1px solid var(--panel-line);
+    z-index:5;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand h1{
+    font-family:var(--font-display);
+    font-size:20px;letter-spacing:0.14em;text-transform:uppercase;
+    margin:0;color:var(--parchment);
+    font-weight:600;
+  }
+  .brand span{
+    font-family:var(--font-mono);
+    font-size:11px;color:var(--ember);
+    letter-spacing:0.08em;
+  }
+  .modes{display:flex;gap:8px;}
+  .mode-btn{
+    font-family:var(--font-mono);
+    font-size:11px;letter-spacing:0.06em;text-transform:uppercase;
+    background:transparent;border:1px solid var(--panel-line);
+    color:var(--parchment-dim);
+    padding:8px 14px;border-radius:2px;cursor:pointer;
+    transition:all .15s ease;
+    position:relative;
+  }
+  .mode-btn:hover:not(:disabled){border-color:var(--ember);color:var(--parchment);}
+  .mode-btn.active{background:var(--ember);border-color:var(--ember);color:#1a0f08;font-weight:600;}
+  .mode-btn:disabled{opacity:0.35;cursor:not-allowed;}
+  .mode-btn .dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--moss);margin-right:6px;
+  }
+  .mode-btn:disabled .dot{background:#6b4a4a;}
+
+  /* ---------- main layout ---------- */
+  main{flex:1;position:relative;display:flex;overflow:hidden;}
+  #canvas-wrap{flex:1;position:relative;}
+  canvas{display:block;width:100%;height:100%;}
+
+  #vignette{
+    position:absolute;inset:0;pointer-events:none;
+    box-shadow: inset 0 0 160px 40px rgba(0,0,0,0.55);
+  }
+
+  /* ---------- side panel ---------- */
+  #panel{
+    width:340px;flex-shrink:0;
+    background:var(--panel);
+    border-left:1px solid var(--panel-line);
+    display:flex;flex-direction:column;
+    z-index:4;
+  }
+  #panel.collapsed{width:0;overflow:hidden;border-left:none;}
+
+  .panel-section{padding:18px 20px;border-bottom:1px solid var(--panel-line);}
+  .eyebrow{
+    font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--ember);margin:0 0 10px 0;
+  }
+  textarea{
+    width:100%;min-height:78px;resize:vertical;
+    background:#0f120f;border:1px solid var(--panel-line);
+    color:var(--parchment);font-family:var(--font-body);font-size:14.5px;
+    padding:10px 12px;border-radius:2px;line-height:1.4;
+  }
+  textarea:focus{outline:none;border-color:var(--ember);}
+  textarea::placeholder{color:#5c6058;}
+
+  .row{display:flex;gap:8px;margin-top:10px;}
+  button.primary{
+    flex:1;background:var(--ember);color:#1a0f08;border:none;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;text-transform:uppercase;
+    padding:10px 12px;border-radius:2px;cursor:pointer;font-weight:700;
+    transition:filter .15s ease;
+  }
+  button.primary:hover{filter:brightness(1.1);}
+  button.ghost{
+    background:transparent;border:1px solid var(--panel-line);color:var(--parchment-dim);
+    font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:0.06em;
+    padding:10px 12px;border-radius:2px;cursor:pointer;
+  }
+  button.ghost:hover{border-color:var(--parchment-dim);color:var(--parchment);}
+
+  #log{flex:1;overflow-y:auto;padding:6px 20px 20px;}
+  .log-entry{
+    padding:10px 0;border-bottom:1px dashed var(--panel-line);
+    font-size:13px;color:var(--parchment-dim);
+  }
+  .log-entry .txt{color:var(--parchment);font-style:italic;margin-bottom:6px;display:block;}
+  .chip-row{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{
+    font-family:var(--font-mono);font-size:10.5px;
+    background:#1e2620;border:1px solid var(--panel-line);
+    padding:3px 8px;border-radius:10px;color:var(--moss);
+  }
+  .chip.unmatched{color:#8a7a5c;}
+  .chip.custom{color:var(--ember);border-color:rgba(201,102,43,0.4);}
+
+  #legend{padding:14px 20px;border-top:1px solid var(--panel-line);}
+  #legend .eyebrow{margin-bottom:8px;}
+  .legend-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;}
+  .legend-item{font-size:16px;text-align:center;opacity:0.7;}
+
+  #ar-note{
+    position:absolute;bottom:18px;left:18px;right:18px;
+    background:rgba(15,18,15,0.92);border:1px solid var(--panel-line);
+    padding:12px 16px;border-radius:3px;font-size:12.5px;color:var(--parchment-dim);
+    display:none;z-index:6;line-height:1.5;
+  }
+  #ar-note.show{display:block;}
+  #ar-note b{color:var(--ember);}
+
+  #toggle-panel{
+    position:absolute;top:14px;right:14px;z-index:6;
+    background:var(--panel);border:1px solid var(--panel-line);color:var(--parchment-dim);
+    width:30px;height:30px;border-radius:2px;cursor:pointer;font-family:var(--font-mono);
+  }
+
+  @media (max-width:760px){
+    #panel{position:absolute;right:0;top:0;bottom:0;width:88vw;max-width:340px;}
+    .brand span{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <h1>Encounter Table</h1>
+      <span>SCENE FROM TEXT</span>
+    </div>
+    <div class="modes">
+      <button class="mode-btn active" id="btn-tabletop"><span class="dot"></span>Tabletop</button>
+      <button class="mode-btn" id="btn-vr" disabled><span class="dot"></span>VR</button>
+      <button class="mode-btn" id="btn-ar" disabled><span class="dot"></span>AR</button>
+    </div>
+  </header>
+  <main>
+    <div id="canvas-wrap">
+      <div id="vignette"></div>
+      <button id="toggle-panel">☰</button>
+      <div id="ar-note"></div>
+    </div>
+    <div id="panel">
+      <div class="panel-section">
+        <p class="eyebrow">Narrate the moment</p>
+        <p style="font-size:11.5px;color:var(--parchment-dim);margin:0 0 8px 0;">Recognizes the built-in bestiary below, and takes a guess at anything else too — try “jellyfish monster” or “crumbling watchtower.”</p>
+        <textarea id="input" placeholder="e.g. The goblin ambushes the party near a treasure chest as fire breaks out by the old bridge"></textarea>
+        <div class="row">
+          <button class="primary" id="btn-add">Place on table</button>
+          <button class="ghost" id="btn-clear">Clear table</button>
+        </div>
+      </div>
+      <div class="panel-section" id="sketchfab-section">
+        <p class="eyebrow">Sketchfab connection</p>
+        <div class="row" style="margin-top:0;">
+          <input id="sketchfab-key" type="password" placeholder="Paste your Sketchfab API Token"
+            style="flex:1;background:#0f120f;border:1px solid var(--panel-line);color:var(--parchment);
+            font-family:var(--font-mono);font-size:12px;padding:9px 10px;border-radius:2px;">
+          <button class="ghost" id="btn-sketchfab-save">Connect</button>
+        </div>
+        <div id="sketchfab-status" style="font-family:var(--font-mono);font-size:11px;color:var(--parchment-dim);margin-top:8px;">
+          <span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#6b4a4a;margin-right:6px;"></span>
+          Not connected — placing procedural icons only
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--parchment-dim);">
+          <input type="checkbox" id="sketchfab-toggle" checked style="accent-color:var(--ember);">
+          Try real Sketchfab models when connected
+        </label>
+      </div>
+      <div id="log"></div>
+      <div id="legend">
+        <p class="eyebrow">Recognized entities</p>
+        <div class="legend-grid" id="legend-grid"></div>
+      </div>
+      <div class="panel-section" id="sources-section" style="display:none;">
+        <p class="eyebrow">Model sources &amp; attribution</p>
+        <div id="sources-list" style="font-size:12px;color:var(--parchment-dim);line-height:1.6;"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* =========================================================
+   ENTITY DICTIONARY
+   Each entry: keywords[], emoji, color (hex), shape builder
+   ========================================================= */
+const ENTITIES = [
+  { key:'dragon',   emoji:'🐉', color:0xc9662b, words:['dragon','wyrm','wyvern'] },
+  { key:'goblin',   emoji:'👺', color:0x4c6b4f, words:['goblin','goblins'] },
+  { key:'orc',      emoji:'👹', color:0x5a5230, words:['orc','orcs'] },
+  { key:'skeleton', emoji:'💀', color:0xd8d2b8, words:['skeleton','bones','undead'] },
+  { key:'zombie',   emoji:'🧟', color:0x6b7a4f, words:['zombie','ghoul'] },
+  { key:'wizard',   emoji:'🧙', color:0x5a4a8f, words:['wizard','mage','sorcerer','sorceress'] },
+  { key:'knight',   emoji:'🛡️', color:0x8a8f96, words:['knight','paladin','guard'] },
+  { key:'rogue',    emoji:'🗡️', color:0x2e2e2e, words:['rogue','thief','assassin'] },
+  { key:'elf',      emoji:'🧝', color:0x7fae82, words:['elf','elves'] },
+  { key:'dwarf',    emoji:'🪓', color:0x8f6a3a, words:['dwarf','dwarves'] },
+  { key:'chest',    emoji:'📦', color:0xa9772f, words:['chest','treasure','loot'] },
+  { key:'gold',     emoji:'🪙', color:0xd4af37, words:['gold','coin','coins'] },
+  { key:'sword',    emoji:'⚔️', color:0xbfc4c9, words:['sword','blade','swords'] },
+  { key:'bow',      emoji:'🏹', color:0x7a5230, words:['bow','arrow','archer'] },
+  { key:'potion',   emoji:'🧪', color:0xa03050, words:['potion','elixir','vial'] },
+  { key:'fire',     emoji:'🔥', color:0xe4622a, words:['fire','flame','burn','ablaze'] },
+  { key:'ice',      emoji:'❄️', color:0x8fd0e0, words:['ice','frost','frozen'] },
+  { key:'poison',   emoji:'☠️', color:0x6a8f4a, words:['poison','venom','toxic'] },
+  { key:'trap',     emoji:'⚠️', color:0x8a3a2a, words:['trap','snare','pitfall'] },
+  { key:'pit',      emoji:'🕳️', color:0x1a1a1a, words:['pit','chasm','hole'] },
+  { key:'door',     emoji:'🚪', color:0x6a4a2a, words:['door','gate','portal'] },
+  { key:'tower',    emoji:'🗼', color:0x6a6a6a, words:['tower','keep'] },
+  { key:'castle',   emoji:'🏰', color:0x74767a, words:['castle','fortress'] },
+  { key:'tree',     emoji:'🌲', color:0x3f6b3f, words:['tree','forest','woods'] },
+  { key:'rock',     emoji:'🪨', color:0x7a7a72, words:['rock','boulder','cliff'] },
+  { key:'river',    emoji:'💧', color:0x3a6a8a, words:['river','water','lake','stream'] },
+  { key:'bridge',   emoji:'🌉', color:0x7a5a3a, words:['bridge'] },
+  { key:'altar',    emoji:'🕯️', color:0xa08a5a, words:['altar','shrine','ritual'] },
+  { key:'spider',   emoji:'🕷️', color:0x2a2020, words:['spider','web','arachnid'] },
+  { key:'wolf',     emoji:'🐺', color:0x5a5a5a, words:['wolf','wolves'] },
+  { key:'bear',     emoji:'🐻', color:0x6a4a2a, words:['bear'] },
+  { key:'giant',    emoji:'🦶', color:0x8a7a5a, words:['giant','ogre'] },
+  { key:'ghost',    emoji:'👻', color:0xd8e0e8, words:['ghost','specter','spirit','wraith'] },
+  { key:'lich',     emoji:'🩻', color:0x3a2a4a, words:['lich','necromancer'] },
+  { key:'demon',    emoji:'😈', color:0x8a1a1a, words:['demon','devil','fiend'] },
+  { key:'angel',    emoji:'😇', color:0xe8dfc0, words:['angel','celestial'] },
+  { key:'horse',    emoji:'🐴', color:0x6a4a2a, words:['horse','steed','mount'] },
+  { key:'campfire', emoji:'🏕️', color:0xc9662b, words:['camp','campfire','tent'] },
+  { key:'party',    emoji:'🧑‍🤝‍🧑', color:0x4a6a8a, words:['party','adventurers','players'] },
+  { key:'explosion',emoji:'💥', color:0xe4a020, words:['explosion','blast'] },
+  { key:'lightning',emoji:'⚡', color:0xd0d060, words:['lightning','thunder','storm'] },
+];
+
+/* =========================================================
+   THREE.JS SCENE SETUP
+   ========================================================= */
+const wrap = document.getElementById('canvas-wrap');
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+renderer.xr.enabled = true;
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1210);
+scene.fog = new THREE.Fog(0x0d1210, 12, 34);
+
+const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth/wrap.clientHeight, 0.1, 100);
+let camDist = 14, camTheta = 0.9, camPhi = 0.9;
+function updateCamera(){
+  camera.position.set(
+    camDist*Math.sin(camPhi)*Math.sin(camTheta),
+    camDist*Math.cos(camPhi),
+    camDist*Math.sin(camPhi)*Math.cos(camTheta)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+
+// Lighting
+scene.add(new THREE.HemisphereLight(0xccb890, 0x14100c, 0.7));
+const key = new THREE.DirectionalLight(0xffd9a0, 1.0);
+key.position.set(6,10,4);
+scene.add(key);
+const rim = new THREE.PointLight(0xc9662b, 0.6, 30);
+rim.position.set(-6,4,-6);
+scene.add(rim);
+
+// Table / battlemap
+const tableGeo = new THREE.CylinderGeometry(9, 9.4, 0.5, 48);
+const tableMat = new THREE.MeshStandardMaterial({ color:0x3a2c1e, roughness:0.9 });
+const table = new THREE.Mesh(tableGeo, tableMat);
+table.position.y = -0.25;
+scene.add(table);
+
+const gridHelper = new THREE.GridHelper(16, 16, 0xc9662b, 0x3a3126);
+gridHelper.position.y = 0.01;
+gridHelper.material.opacity = 0.35;
+gridHelper.material.transparent = true;
+scene.add(gridHelper);
+
+/* =========================================================
+   ENTITY -> 3D ICON BUILDER
+   Builds a small procedural mesh group + floating emoji sprite,
+   since we can't fetch arbitrary external assets.
+   ========================================================= */
+function makeEmojiSprite(emoji){
+  const size = 128;
+  const cvs = document.createElement('canvas');
+  cvs.width = size; cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  ctx.font = `${size*0.7}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, size/2, size/2 + 8);
+  const tex = new THREE.CanvasTexture(cvs);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.1,1.1,1.1);
+  return sprite;
+}
+
+function makeBaseMesh(entity){
+  const mat = new THREE.MeshStandardMaterial({ color:entity.color, roughness:0.5, metalness:0.15, emissive:entity.color, emissiveIntensity:0.12 });
+  let geo;
+  // vary geometry slightly by category so the table doesn't look uniform
+  if (['fire','explosion','lightning'].includes(entity.key)) geo = new THREE.OctahedronGeometry(0.55,0);
+  else if (['chest','gold','tower','castle','door','bridge'].includes(entity.key)) geo = new THREE.BoxGeometry(0.9,0.9,0.9);
+  else if (['ghost','angel','demon','wizard','lich'].includes(entity.key)) geo = new THREE.ConeGeometry(0.55,1.1,6);
+  else if (['rock','pit','giant','bear'].includes(entity.key)) geo = new THREE.DodecahedronGeometry(0.55,0);
+  else geo = new THREE.IcosahedronGeometry(0.5,0);
+  return new THREE.Mesh(geo, mat);
+}
+
+let occupied = new Set();
+function freeGridSpot(){
+  for (let tries=0; tries<80; tries++){
+    const gx = Math.floor(Math.random()*13)-6;
+    const gz = Math.floor(Math.random()*13)-6;
+    const k = gx+','+gz;
+    if (!occupied.has(k) && Math.hypot(gx,gz) < 7){
+      occupied.add(k);
+      return {x:gx, z:gz};
+    }
+  }
+  return {x:(Math.random()*10-5), z:(Math.random()*10-5)};
+}
+
+const tokens = []; // { group, base, sprite, phase }
+
+function spawnEntity(entity){
+  const group = new THREE.Group();
+  const base = makeBaseMesh(entity);
+  base.position.y = 0.55;
+  group.add(base);
+  const sprite = makeEmojiSprite(entity.emoji);
+  sprite.position.y = 1.5;
+  group.add(sprite);
+
+  const spot = freeGridSpot();
+  group.position.set(spot.x, 0, spot.z);
+  group.scale.set(0.001,0.001,0.001);
+  scene.add(group);
+
+  const token = { group, base, sprite, phase:Math.random()*Math.PI*2, spawnT:performance.now(), entity, real:false };
+  tokens.push(token);
+
+  if (SKETCHFAB.key && document.getElementById('sketchfab-toggle').checked){
+    fetchSketchfabModel(entity, token);
+  }
+  return token;
+}
+
+function clearTable(){
+  tokens.forEach(t=>scene.remove(t.group));
+  tokens.length = 0;
+  occupied.clear();
+}
+
+/* =========================================================
+   TEXT PARSER
+   Two passes: match the curated bestiary first, then pull out
+   any other noun-ish phrases (e.g. "jellyfish monster") and
+   treat them as open-ended entities to hand to Sketchfab.
+   ========================================================= */
+const STOPWORDS = new Set([
+  'the','a','an','and','or','but','near','by','at','in','on','of','to','from','with','as','is','are','was','were',
+  'be','been','being','it','its','their','them','they','he','she','his','her','you','your','yours','i','we','our','us',
+  'this','that','these','those','then','now','out','up','down','into','onto','toward','towards','behind','before','after',
+  'while','during','if','when','so','very','really','just','also','suddenly','still','already','ever','never','not','no',
+  'yes','there','here','who','what','why','how','which','some','any','all','both','each','more','most','other','such',
+  'only','own','same','too','can','will','would','should','could','may','might','must','shall','do','does','did','done',
+  'have','has','had','having','get','gets','got','getting','go','goes','went','going','gone','make','makes','made','making',
+  'ambush','ambushes','ambushed','ambushing','attack','attacks','attacked','attacking','cast','casts','casting',
+  'breathe','breathes','breathing','break','breaks','breaking','broke','broken','enter','enters','entering','entered',
+  'open','opens','opening','opened','find','finds','finding','found','see','sees','seeing','saw','seen','hear','hears',
+  'hearing','heard','run','runs','running','ran','fight','fights','fighting','fought','appear','appears','appearing',
+  'appeared','emerge','emerges','emerging','emerged','begin','begins','beginning','began','begun','start','starts',
+  'starting','started','strike','strikes','striking','struck','swing','swings','swinging','swung','throw','throws',
+  'throwing','threw','thrown','shoot','shoots','shooting','shot','flee','flees','fleeing','fled','chase','chases','chasing','chased'
+]);
+
+const GENERIC_LOOK_RULES = [
+  { test:/monster|beast|creature|fiend|horror|abomination/, emoji:'👾' },
+  { test:/plant|flower|vine|fungus|mushroom|moss/, emoji:'🍄' },
+  { test:/machine|construct|golem|robot|automaton/, emoji:'⚙️' },
+  { test:/statue|idol|effigy/, emoji:'🗿' },
+  { test:/book|tome|scroll|grimoire/, emoji:'📜' },
+  { test:/gem|crystal|jewel|orb/, emoji:'💎' },
+  { test:/boat|ship|raft|vessel/, emoji:'⛵' },
+  { test:/web|cocoon/, emoji:'🕸️' },
+  { test:/egg|nest/, emoji:'🥚' },
+  { test:/mask|helm|helmet|crown/, emoji:'👑' },
+];
+function genericEmojiFor(phrase){
+  const rule = GENERIC_LOOK_RULES.find(r=>r.test.test(phrase));
+  return rule ? rule.emoji : '✨';
+}
+function hashString(str){
+  let h = 0;
+  for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function buildGenericEntity(phrase){
+  const hue = hashString(phrase) % 360;
+  return {
+    key: 'custom-'+phrase.replace(/\s+/g,'-'),
+    emoji: genericEmojiFor(phrase),
+    color: new THREE.Color(`hsl(${hue}, 55%, 45%)`).getHex(),
+    words: [phrase],
+    generic: true
+  };
+}
+
+function parseText(text){
+  const lower = text.toLowerCase();
+  const found = [];
+  const consumedWords = new Set();
+
+  ENTITIES.forEach(entity=>{
+    const hit = entity.words.some(w=>lower.includes(w));
+    if (hit){
+      found.push(entity);
+      entity.words.forEach(w=>w.split(/\s+/).forEach(tok=>consumedWords.add(tok)));
+    }
+  });
+
+  // Open-ended pass: group whatever's left into candidate phrases
+  const tokens = lower.replace(/[^a-z0-9\s'-]/g,' ').split(/\s+/).filter(Boolean);
+  const phrases = [];
+  let current = [];
+  tokens.forEach(tok=>{
+    const skip = STOPWORDS.has(tok) || consumedWords.has(tok) || tok.length < 3;
+    if (skip){
+      if (current.length) phrases.push(current.join(' '));
+      current = [];
+    } else {
+      current.push(tok);
+    }
+  });
+  if (current.length) phrases.push(current.join(' '));
+
+  const seen = new Set();
+  let genericCount = 0;
+  phrases.forEach(phrase=>{
+    if (seen.has(phrase) || genericCount >= 4) return;
+    seen.add(phrase);
+    found.push(buildGenericEntity(phrase));
+    genericCount++;
+  });
+
+  return found;
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+const input = document.getElementById('input');
+const log = document.getElementById('log');
+const legendGrid = document.getElementById('legend-grid');
+
+ENTITIES.forEach(e=>{
+  const el = document.createElement('div');
+  el.className = 'legend-item';
+  el.textContent = e.emoji;
+  el.title = e.key;
+  legendGrid.appendChild(el);
+});
+
+function addLogEntry(text, matched){
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  const chips = matched.map(e=>`<span class="chip ${e.generic?'custom':''}">${e.emoji} ${e.generic ? e.words[0] : e.key}</span>`).join('');
+  entry.innerHTML = `<span class="txt">“${text}”</span><div class="chip-row">${chips || '<span class="chip unmatched">no known entities recognized</span>'}</div>`;
+  log.prepend(entry);
+}
+
+document.getElementById('btn-add').addEventListener('click', ()=>{
+  const text = input.value.trim();
+  if (!text) return;
+  const matched = parseText(text);
+  matched.forEach(e=>spawnEntity(e));
+  addLogEntry(text, matched);
+  input.value = '';
+  input.focus();
+});
+input.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('btn-add').click();
+});
+
+document.getElementById('btn-clear').addEventListener('click', clearTable);
+
+/* ---- Sketchfab connect ---- */
+const SKETCHFAB = { key:null };
+const sfStatus = document.getElementById('sketchfab-status');
+document.getElementById('btn-sketchfab-save').addEventListener('click', ()=>{
+  const val = document.getElementById('sketchfab-key').value.trim();
+  if (!val){
+    SKETCHFAB.key = null;
+    sfStatus.innerHTML = '<span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#6b4a4a;margin-right:6px;"></span>Not connected — placing procedural icons only';
+    return;
+  }
+  SKETCHFAB.key = val;
+  sfStatus.innerHTML = '<span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#4c6b4f;margin-right:6px;"></span>Connected — new tokens will try real Sketchfab models first';
+  // key kept only in memory for this session, never written to storage
+});
+
+document.getElementById('toggle-panel').addEventListener('click', ()=>{
+  document.getElementById('panel').classList.toggle('collapsed');
+});
+
+/* =========================================================
+   CAMERA CONTROLS (manual orbit, no external controls lib)
+   ========================================================= */
+let dragging = false, lastX=0, lastY=0;
+renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+window.addEventListener('pointerup', ()=>dragging=false);
+window.addEventListener('pointermove', e=>{
+  if (!dragging) return;
+  const dx = e.clientX-lastX, dy = e.clientY-lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  camTheta -= dx*0.005;
+  camPhi = Math.max(0.25, Math.min(1.5, camPhi - dy*0.005));
+  updateCamera();
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  camDist = Math.max(5, Math.min(26, camDist + e.deltaY*0.01));
+  updateCamera();
+}, { passive:true });
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = wrap.clientWidth/wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+});
+
+/* =========================================================
+   MODE SWITCHING: Tabletop / VR / AR (WebXR)
+   ========================================================= */
+const btnTabletop = document.getElementById('btn-tabletop');
+const btnVR = document.getElementById('btn-vr');
+const btnAR = document.getElementById('btn-ar');
+const arNote = document.getElementById('ar-note');
+
+function setActiveMode(id){
+  [btnTabletop, btnVR, btnAR].forEach(b=>b.classList.remove('active'));
+  id.classList.add('active');
+}
+btnTabletop.addEventListener('click', ()=>{
+  if (renderer.xr.isPresenting) renderer.xr.getSession().end();
+  setActiveMode(btnTabletop);
+  arNote.classList.remove('show');
+});
+
+async function checkXRSupport(){
+  if (!navigator.xr){
+    arNote.innerHTML = '<b>WebXR unavailable.</b> This browser has no WebXR API, so VR/AR modes stay off. Tabletop mode still works fully.';
+    arNote.classList.add('show');
+    setTimeout(()=>arNote.classList.remove('show'), 6000);
+    return;
+  }
+  try{
+    const vrOk = await navigator.xr.isSessionSupported('immersive-vr');
+    const arOk = await navigator.xr.isSessionSupported('immersive-ar');
+    btnVR.disabled = !vrOk;
+    btnAR.disabled = !arOk;
+  }catch(e){
+    btnVR.disabled = true;
+    btnAR.disabled = true;
+  }
+}
+checkXRSupport();
+
+async function enterXR(mode, btn){
+  if (!navigator.xr){ return; }
+  try{
+    const sessionInit = mode==='immersive-ar'
+      ? { optionalFeatures:['local-floor','bounded-floor','hit-test'] }
+      : { optionalFeatures:['local-floor','bounded-floor'] };
+    const session = await navigator.xr.requestSession(mode, sessionInit);
+    renderer.xr.setSession(session);
+    setActiveMode(btn);
+    arNote.classList.remove('show');
+    session.addEventListener('end', ()=>{
+      setActiveMode(btnTabletop);
+    });
+  }catch(err){
+    arNote.innerHTML = `<b>${mode==='immersive-ar'?'AR':'VR'} session failed to start.</b> ${err.message || 'The device reported it supports this mode but declined the session — this can happen inside an embedded/sandboxed browser view. Try opening this page directly in your headset or glasses browser.'}`;
+    arNote.classList.add('show');
+  }
+}
+btnVR.addEventListener('click', ()=>enterXR('immersive-vr', btnVR));
+btnAR.addEventListener('click', ()=>enterXR('immersive-ar', btnAR));
+
+/* =========================================================
+   SKETCHFAB INTEGRATION
+   Search -> pick a downloadable CC-licensed model -> request
+   download -> fetch the glTF zip archive -> unzip in-browser
+   -> load into the scene, replacing the procedural icon.
+   ========================================================= */
+const sourcesSection = document.getElementById('sources-section');
+const sourcesList = document.getElementById('sources-list');
+function addSourceEntry(entity, result){
+  sourcesSection.style.display = 'block';
+  const row = document.createElement('div');
+  const licenseLabel = (result.license && result.license.label) ? result.license.label : 'Unknown license';
+  row.innerHTML = `${entity.emoji} <b style="color:var(--parchment)">${result.name}</b> by ${result.user ? result.user.username : 'unknown'} — ` +
+    `<a href="https://sketchfab.com/3d-models/${result.uid}" target="_blank" rel="noopener" style="color:var(--ember)">${licenseLabel} ↗</a>`;
+  sourcesList.appendChild(row);
+}
+
+async function unzipGltfToBlobMap(zipArrayBuffer){
+  const zip = await JSZip.loadAsync(zipArrayBuffer);
+  const blobMap = {};
+  let rootGltfPath = null;
+  const entries = Object.keys(zip.files).filter(p=>!zip.files[p].dir);
+  for (const path of entries){
+    const ext = path.split('.').pop().toLowerCase();
+    let mime = 'application/octet-stream';
+    if (ext === 'gltf') mime = 'model/gltf+json';
+    else if (ext === 'bin') mime = 'application/octet-stream';
+    else if (['jpg','jpeg'].includes(ext)) mime = 'image/jpeg';
+    else if (ext === 'png') mime = 'image/png';
+    const blob = await zip.files[path].async('blob');
+    const url = URL.createObjectURL(new Blob([blob], { type:mime }));
+    blobMap[path] = url;
+    if (ext === 'gltf' || ext === 'glb') rootGltfPath = path;
+  }
+  return { blobMap, rootGltfPath };
+}
+
+function swapInRealModel(token, gltfScene){
+  // size + center the loaded model, then drop it in place of the procedural base
+  const box = new THREE.Box3().setFromObject(gltfScene);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const scale = 1.5 / maxDim;
+  gltfScene.scale.setScalar(scale);
+
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  gltfScene.position.sub(center.multiplyScalar(scale));
+
+  const box2 = new THREE.Box3().setFromObject(gltfScene);
+  gltfScene.position.y -= box2.min.y; // rest on the table
+
+  token.group.remove(token.base);
+  token.group.add(gltfScene);
+  token.base = gltfScene;
+  token.real = true;
+  token.sprite.position.y = box2.max.y - box2.min.y + 0.5;
+}
+
+async function fetchSketchfabModel(entity, token){
+  try{
+    const query = entity.words[0];
+    const searchUrl = `https://api.sketchfab.com/v3/search?type=models&q=${encodeURIComponent(query)}&downloadable=true&sort_by=-relevance&count=6`;
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) return; // stay procedural, fail quietly
+    const searchData = await searchRes.json();
+    const candidate = (searchData.results || []).find(r=>r.isDownloadable);
+    if (!candidate) return;
+
+    const dlRes = await fetch(`https://api.sketchfab.com/v3/models/${candidate.uid}/download`, {
+      headers: { Authorization: `Token ${SKETCHFAB.key}` },
+      mode: 'cors'
+    });
+    if (!dlRes.ok) return; // bad/expired token, no download rights on this model, etc.
+    const dlData = await dlRes.json();
+    if (!dlData.gltf || !dlData.gltf.url) return;
+
+    const zipRes = await fetch(dlData.gltf.url);
+    if (!zipRes.ok) return;
+    const zipBuffer = await zipRes.arrayBuffer();
+    const { blobMap, rootGltfPath } = await unzipGltfToBlobMap(zipBuffer);
+    if (!rootGltfPath) return;
+
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier((url)=>{
+      if (url.startsWith('blob:')) return url;
+      const key = decodeURIComponent(url);
+      return blobMap[key] || url;
+    });
+    const loader = new THREE.GLTFLoader(manager);
+    loader.setResourcePath('');
+    loader.setPath('');
+    loader.load(blobMap[rootGltfPath], (gltf)=>{
+      swapInRealModel(token, gltf.scene);
+      addSourceEntry(entity, candidate);
+    }, undefined, ()=>{ /* parse failed, keep procedural icon */ });
+  }catch(err){
+    // network/CORS/token issues all fall back silently to the procedural icon
+  }
+}
+
+/* =========================================================
+   RENDER LOOP
+   ========================================================= */
+function animate(){
+  const t = performance.now()*0.001;
+  tokens.forEach(tok=>{
+    // spawn grow-in
+    const age = (performance.now()-tok.spawnT)/450;
+    const s = Math.min(1, age);
+    const eased = 1-Math.pow(1-s,3);
+    tok.group.scale.setScalar(0.001 + eased*0.999);
+    // idle bob + spin, gif-like looping motion
+    tok.base.rotation.y = t*0.6 + tok.phase;
+    tok.group.position.y = Math.sin(t*1.3 + tok.phase)*0.12;
+    tok.sprite.position.y = 1.5 + Math.sin(t*1.6 + tok.phase)*0.08;
+  });
+  renderer.render(scene, camera);
+}
+renderer.setAnimationLoop(animate);
+
+// Seed the table with one example so it doesn't look empty
+spawnEntity(ENTITIES.find(e=>e.key==='campfire'));
+spawnEntity(ENTITIES.find(e=>e.key==='party'));
+addLogEntry('The party gathers around the campfire before setting out', [ENTITIES.find(e=>e.key==='campfire'), ENTITIES.find(e=>e.key==='party')]);
+</script>
+</body>
+</html>
